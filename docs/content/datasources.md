@@ -158,6 +158,77 @@ QUX='single quotes ignore $variables and newlines'
 The [`github.com/joho/godotenv`](https://github.com/joho/godotenv) package is used for parsing - see the full details there.
 
 
+## Recording and replaying datasource reads
+
+Sometimes the remote configuration a template relies on changes or becomes
+temporarily unavailable, and it is useful to re-render using exactly the data
+that a previous run actually retrieved - without having to save each
+datasource subpath by hand. Gomplate can record the datasource reads made
+during a run into a local _snapshot_ file, and later replay them strictly.
+
+Recording and replaying are enabled with the
+[`--datasource-record` and `--datasource-replay`](../usage/#--datasource-record)
+command-line flags, or the `datasourceRecord` and `datasourceReplay`
+[configuration](../config/#datasourcerecord) keys. The two options are mutually
+exclusive.
+
+To record, point `--datasource-record` at a local file path:
+
+```console
+$ gomplate -d config=https://example.com/config.json \
+    --datasource-record snapshot.json \
+    -i '{{ (ds "config").foo }}'
+```
+
+The snapshot covers a single run, from the reads made while rendering the
+output-map template and loading [context][] datasources, to every read made
+while executing the template body and any nested templates. This includes
+datasources defined at runtime with
+[`defineDatasource`][] and URLs used directly with [`datasource`][]/[`include`][].
+
+Only reads that actually succeed are recorded - with their raw bytes and the
+effective MIME type. Unused datasources are not prefetched, a successful read
+of empty content is preserved, directory datasources record their directory
+listing, and `merge:` datasources record the merged result. Reads are
+identified by their _alias_ and the first read argument (the subpath); extra
+arguments are ignored as usual, and the request is additionally checked
+against the URL, type hint, and effective headers it resolves to. Repeated
+reads within one run keep using the existing on-demand caching.
+
+To replay, pass the snapshot to a new process with `--datasource-replay`
+(otherwise leaving inputs and configuration unchanged):
+
+```console
+$ gomplate -d config=https://example.com/config.json \
+    --datasource-replay snapshot.json \
+    -i '{{ (ds "config").foo }}'
+```
+
+During replay, context, `ds`/`datasource` and `include` receive exactly the
+values and raw text that were recorded - no files are opened, no directories
+are enumerated, and no HTTP `HEAD`/`GET` requests are made for the
+datasources, and the snapshot file is never modified. A read without a
+matching record, or one whose URL, type hint, or headers differ from when it
+was recorded, fails explicitly rather than falling back to the live source;
+[`datasourceReachable`](../functions/data/#datasourcereachable)
+instead reports `false`, as it does for failed live reads. A corrupt snapshot
+or an unsupported snapshot version is reported up front, before any inputs are
+collected or outputs created.
+
+The snapshot is written atomically and only published once the whole run
+(template collection and rendering, including output writes) succeeds. If
+anything fails, the previous snapshot at the path is left intact and
+unpublished temporary files are removed; after fixing the problem, recording
+again fully replaces the old snapshot, which can then be replayed by a cold
+process.
+
+Snapshots only cover datasource reads. The input and nested template files
+themselves, direct [environment](../functions/env/) or
+[file](../functions/file/) functions, and plugins continue to run through
+their normal entry points, and when neither option is enabled all existing
+behaviour is unchanged.
+
+
 ## Using `aws+smp` datasources
 
 The `aws+smp://` scheme can be used to retrieve data from the [AWS Systems Manager](https://aws.amazon.com/systems-manager/) (née AWS EC2 Simple Systems Manager) [Parameter Store][AWS SMP]. This hierarchically organized key/value store allows you to store text, lists or encrypted secrets for easy retrieval by AWS resources. See [the AWS Systems Manager documentation](https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-paramstore-su-create.html#sysman-paramstore-su-create-about) for details on creating these parameters.

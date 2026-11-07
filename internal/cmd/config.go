@@ -207,6 +207,15 @@ func cobraConfig(cmd *cobra.Command, args []string) (cfg *gomplate.Config, err e
 		return nil, err
 	}
 
+	cfg.DataSourceRecord, err = getString(cmd, "datasource-record")
+	if err != nil {
+		return nil, err
+	}
+	cfg.DataSourceReplay, err = getString(cmd, "datasource-replay")
+	if err != nil {
+		return nil, err
+	}
+
 	pl, err := getStringSlice(cmd, "plugin")
 	if err != nil {
 		return nil, err

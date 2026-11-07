@@ -27,6 +27,23 @@ func Run(ctx context.Context, cfg *Config) error {
 		return fmt.Errorf("failed to validate config: %w\n%+v", err, cfg)
 	}
 
+	// datasource snapshot record/replay - set up before any templates are
+	// gathered or datasources read. A corrupt or unsupported replay file is
+	// an error up front, so no inputs are collected and no outputs are
+	// created if the snapshot can't be used.
+	var recorder *datafs.SnapshotRecorder
+	switch {
+	case cfg.DataSourceReplay != "":
+		snapshot, serr := loadReplaySnapshot(cfg.DataSourceReplay)
+		if serr != nil {
+			return serr
+		}
+		ctx = datafs.ContextWithSnapshotReplayer(ctx, datafs.NewSnapshotReplayer(snapshot))
+	case cfg.DataSourceRecord != "":
+		recorder = datafs.NewSnapshotRecorder()
+		ctx = datafs.ContextWithSnapshotRecorder(ctx, recorder)
+	}
+
 	if cfg.Experimental {
 		slog.SetDefault(slog.With("experimental", true))
 		slog.InfoContext(ctx, "experimental functions and features enabled!")
@@ -74,6 +91,15 @@ func Run(ctx context.Context, cfg *Config) error {
 	err = tr.RenderTemplates(ctx, tmpl)
 	if err != nil {
 		return err
+	}
+
+	// publish the datasource snapshot only once the whole run (template
+	// collection, parsing/execution, and output writes) has succeeded;
+	// otherwise any pre-existing snapshot at the path is left untouched
+	if recorder != nil {
+		if err = publishSnapshot(cfg.DataSourceRecord, recorder); err != nil {
+			return err
+		}
 	}
 
 	return nil

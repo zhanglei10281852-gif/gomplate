@@ -101,13 +101,44 @@ func (d *dsReader) ReadSource(ctx context.Context, alias string, args ...string)
 		return "", nil, err
 	}
 
+	// capture the request identity before readFileContent mutates the URL
+	resolvedURL := u.String()
+	hint := mimeTypeHint(u)
+
+	// in replay mode, all reads must come from the snapshot - there must be
+	// no fallback to live (file/dir/HTTP) sources
+	if snap := snapshotFromContext(ctx); snap != nil && snap.replayer != nil {
+		contentType, b, rerr := snap.replayer.replay(alias, arg, resolvedURL, hint, source.Header)
+		if rerr != nil {
+			return "", nil, rerr
+		}
+		fc := &content{contentType: contentType, b: b}
+		d.cache[key] = fc
+		return contentType, b, nil
+	}
+
 	fc, err := d.readFileContent(ctx, u, source.Header)
 	if err != nil {
 		return "", nil, fmt.Errorf("couldn't read datasource '%s' (%s): %w", alias, u, err)
 	}
 	d.cache[key] = fc
 
+	// only successful reads are recorded; failed reachability probes or
+	// failed reads produce no entry
+	if snap := snapshotFromContext(ctx); snap != nil && snap.recorder != nil {
+		snap.recorder.record(alias, arg, resolvedURL, hint, fc.contentType, source.Header, fc.b)
+	}
+
 	return fc.contentType, fc.b, nil
+}
+
+// mimeTypeHint extracts the content-type hint from a datasource URL's type
+// query parameter, following the same rules as readFileContent. Contrary to
+// spec, unescaped '+' characters are allowed, so spaces are replaced with
+// '+'.
+func mimeTypeHint(u *url.URL) string {
+	mimeType := u.Query().Get(typeOverrideParam())
+	return strings.ReplaceAll(mimeType, " ", "+")
 }
 
 func removeQueryParam(u *url.URL, key string) *url.URL {
@@ -121,13 +152,11 @@ func (d *dsReader) readFileContent(ctx context.Context, u *url.URL, hdr http.Hea
 	// possible type hint in the type query param. Contrary to spec, we allow
 	// unescaped '+' characters to make it simpler to provide types like
 	// "application/array+json"
-	overrideType := typeOverrideParam()
-	mimeType := u.Query().Get(overrideType)
-	mimeType = strings.ReplaceAll(mimeType, " ", "+")
+	mimeType := mimeTypeHint(u)
 
 	// now that we have the hint, remove it from the URL - we can't have it
 	// leaking into the filesystem layer
-	u = removeQueryParam(u, overrideType)
+	u = removeQueryParam(u, typeOverrideParam())
 
 	u, fname := SplitFSMuxURL(u)
 

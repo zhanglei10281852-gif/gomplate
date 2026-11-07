@@ -122,6 +122,40 @@ datasources:
 This defines two datasources: `data` and `stuff`, and when the `data`
 source is used, an `Authorization` header will be sent with the given value.
 
+## `datasourceRecord`
+
+See [`--datasource-record`](../usage/#--datasource-record).
+
+A local file path to record all datasource reads made during the run into.
+The file is published atomically only after the whole run succeeds, and can
+later be used with [`datasourceReplay`](#datasourcereplay).
+
+```yaml
+datasources:
+  data:
+    url: https://example.com/api/v1/data
+datasourceRecord: datasource-snapshot.json
+```
+
+## `datasourceReplay`
+
+See [`--datasource-replay`](../usage/#--datasource-replay).
+
+A local file path of a snapshot previously produced with
+[`datasourceRecord`](#datasourcerecord). When set, datasource reads are served
+from the snapshot instead of from live sources; a missing or mismatched
+recorded read is an error.
+
+```yaml
+datasources:
+  data:
+    url: https://example.com/api/v1/data
+datasourceReplay: datasource-snapshot.json
+```
+
+`datasourceRecord` and `datasourceReplay` are mutually exclusive - only one
+may be set after configuration merging.
+
 ## `excludes`
 
 See [`--exclude` and `--include`](../usage/#--exclude-and---include).

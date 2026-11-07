@@ -164,6 +164,25 @@ func TestCobraConfig(t *testing.T) {
 		InputFiles: []string{"in"},
 		PostExec:   []string{"echo", "foo"},
 	}, cfg)
+
+	cmd.Flags().String("datasource-record", "", "...")
+	cmd.Flags().String("datasource-replay", "", "...")
+	cmd.ParseFlags([]string{"--datasource-record", "record.json"})
+	cfg, err = cobraConfig(cmd, cmd.Flags().Args())
+	require.NoError(t, err)
+	assert.Equal(t, "record.json", cfg.DataSourceRecord)
+	assert.Empty(t, cfg.DataSourceReplay)
+
+	// a fresh flag set, since pflag keeps flags marked as changed across
+	// ParseFlags calls on the same command
+	replayCmd := &cobra.Command{}
+	replayCmd.Flags().String("datasource-record", "", "...")
+	replayCmd.Flags().String("datasource-replay", "", "...")
+	replayCmd.ParseFlags([]string{"--datasource-replay", "replay.json"})
+	cfg, err = cobraConfig(replayCmd, replayCmd.Flags().Args())
+	require.NoError(t, err)
+	assert.Empty(t, cfg.DataSourceRecord)
+	assert.Equal(t, "replay.json", cfg.DataSourceReplay)
 }
 
 func TestProcessIncludes(t *testing.T) {

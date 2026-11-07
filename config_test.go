@@ -457,6 +457,8 @@ func TestMergeFromCoversAllFields(t *testing.T) {
 		MissingKey:            "sample",
 		PostExec:              []string{"sample"},
 		PluginTimeout:         time.Second,
+		DataSourceRecord:      "sample",
+		DataSourceReplay:      "sample",
 		ExecPipe:              true,
 		Experimental:          true,
 	}

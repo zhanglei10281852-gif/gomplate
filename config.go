@@ -78,6 +78,17 @@ type Config struct {
 
 	PluginTimeout time.Duration `yaml:"pluginTimeout,omitempty"`
 
+	// DataSourceRecord is the local path of a file to record all datasource
+	// reads made during the run into. The file is published atomically only
+	// after the whole run succeeds, and can later be passed as
+	// DataSourceReplay. Mutually exclusive with DataSourceReplay.
+	DataSourceRecord string `yaml:"datasourceRecord,omitempty"`
+	// DataSourceReplay is the local path of a file previously produced with
+	// DataSourceRecord. All datasource reads are served from this file
+	// instead of from live sources; a missing or mismatched recorded read is
+	// an error. Mutually exclusive with DataSourceRecord.
+	DataSourceReplay string `yaml:"datasourceReplay,omitempty"`
+
 	ExecPipe     bool `yaml:"execPipe,omitempty"`
 	Experimental bool `yaml:"experimental,omitempty"`
 }
@@ -226,6 +237,12 @@ func (c *Config) MergeFrom(o *Config) *Config {
 	if !isZero(o.PluginTimeout) {
 		c.PluginTimeout = o.PluginTimeout
 	}
+	if !isZero(o.DataSourceRecord) {
+		c.DataSourceRecord = o.DataSourceRecord
+	}
+	if !isZero(o.DataSourceReplay) {
+		c.DataSourceReplay = o.DataSourceReplay
+	}
 	if c.Templates == nil {
 		c.Templates = o.Templates
 	} else {
@@ -260,8 +277,13 @@ func (c *Config) MergeFrom(o *Config) *Config {
 // validate the Config
 func (c Config) validate() (err error) {
 	err = notTogether(
-		[]string{"in", "inputFiles", "inputDir"},
-		c.Input, c.InputFiles, c.InputDir)
+		[]string{"datasourceRecord", "datasourceReplay"},
+		c.DataSourceRecord, c.DataSourceReplay)
+	if err == nil {
+		err = notTogether(
+			[]string{"in", "inputFiles", "inputDir"},
+			c.Input, c.InputFiles, c.InputDir)
+	}
 	if err == nil {
 		err = notTogether(
 			[]string{"outputFiles", "outputDir", "outputMap"},

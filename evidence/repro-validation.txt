@@ -1,0 +1,20 @@
+题目：hairyhenderson-gomplate-375fce09-444b-4618-bf6e-312faf76f786
+固定基线：82d457bb40e602ef2933db7e3bb5737a12d383a4
+有效轮数：109；Harness：Trae；来源：count-trae-cn-steps.py；范围：latest_turn；主代理：109；子代理：0；完整 Session ID 与 effectiveRoundsEvidence 一致。
+Session 时长：3094 秒；exceededTwoHours：否；来源：trae-session-realtime-duration；开始 renderer.log 第 9689 行；完成 renderer.log 第 10277 行。
+
+验证命令：go test -count=1 ./...
+结果：全部有测试的包通过。Windows 原始 PATH 缺少 echo/cat/tr/false；将已安装 Git 的 usr/bin 加入 PATH 后，internal/cmd、integration 及全仓其他包通过。未使用 Go 测试缓存。
+
+验证命令：go test -race -count=3 ./internal/datafs
+结果：ok github.com/hairyhenderson/gomplate/v5/internal/datafs。
+
+损坏快照复现：快照 JSON 的 requests[0] 包含 alias=x、arg=""、url=https://example.invalid/source、contentType=text/plain，缺少 body 字段。
+验证命令：go run ./cmd/gomplate --datasource-replay <missing-body.json> -d x=https://example.invalid/source -i '{{ ds "x" }}'
+实际结果：进程退出码 0；标准输出为零字节；读取未向 example.invalid 发起网络请求。
+判定依据：internal/datafs/snapshot.go 的 ReadSnapshot 接受该请求项；SnapshotReplayer 返回 nil body；Run 未将缺少 body 当作损坏快照拒绝。
+
+输出关闭代码审计：render.go 的 renderTemplate 使用 defer wr.Close() 且忽略错误；gomplate.go 仅在 RenderTemplates 返回 nil 后发布录制快照。一个 io.Closer 在 Close 返回错误时，错误没有返回到 Run，快照发布路径仍然可达。
+
+验证命令：git diff --check
+结果：通过；只有 schema/gomplate-config.json 行尾提示，不存在空白错误。

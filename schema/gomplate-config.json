@@ -178,6 +178,14 @@
       "type": "string",
       "description": "timeout for all plugins, e.g. 500ms, 5s (default 5s)"
     },
+    "datasourceRecord": {
+      "type": "string",
+      "description": "DataSourceRecord is the local path of a file to record all datasource\nreads made during the run into. The file is published atomically only\nafter the whole run succeeds, and can later be passed as\nDataSourceReplay. Mutually exclusive with DataSourceReplay."
+    },
+    "datasourceReplay": {
+      "type": "string",
+      "description": "DataSourceReplay is the local path of a file previously produced with\nDataSourceRecord. All datasource reads are served from this file\ninstead of from live sources; a missing or mismatched recorded read is\nan error. Mutually exclusive with DataSourceRecord."
+    },
     "execPipe": {
       "type": "boolean"
     },

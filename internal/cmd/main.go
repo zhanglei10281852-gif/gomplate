@@ -128,6 +128,9 @@ func InitFlags(command *cobra.Command) {
 	command.Flags().StringSliceP("datasource", "d", nil, "`datasource` in alias=URL form. Specify multiple times to add multiple sources.")
 	command.Flags().StringSliceP("datasource-header", "H", nil, "HTTP `header` field in 'alias=Name: value' form to be provided on HTTP-based data sources. Multiples can be set.")
 
+	command.Flags().String("datasource-record", "", "`file` to record datasource reads into - published atomically after a successful run, and usable later with --datasource-replay")
+	command.Flags().String("datasource-replay", "", "replay datasource reads from this `file` (produced with --datasource-record) instead of accessing live sources; a missing or mismatched recorded read is an error")
+
 	command.Flags().StringSliceP("context", "c", nil, "pre-load a `datasource` into the context, in alias=URL form. Use the special alias `.` to set the root context.")
 
 	command.Flags().StringSlice("plugin", nil, "plug in an external command as a function in name=path form. Can be specified multiple times")

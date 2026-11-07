@@ -176,6 +176,63 @@ Note that the `alias` does not need to map to a datasource specified in a
 command-line flag, but can be used in dynamically-defined datasources (see 
 [`defineDatasource`](../functions/data#definedatasource)).
 
+### `--datasource-record`
+
+Record every datasource read made during the run into the given local `file`,
+which can later be used with [`--datasource-replay`](#--datasource-replay) to
+re-run the template without accessing the live datasources.
+
+The recording covers all datasource reads during a run - including those made
+while rendering the [output map](#--output-map), loading [context](#--context-c)
+datasources, executing the template body and nested templates, datasources
+defined with [`defineDatasource`](../functions/data#definedatasource), and
+URLs used directly. Only reads that actually succeed are recorded, with their
+raw bytes and effective MIME type; directory datasources record their directory
+listing, and `merge:` datasources record the merged result. Reads are
+identified by their alias and first argument (the datasource subpath);
+additional arguments continue to be ignored.
+
+The file is written atomically (via a temporary file in the same directory),
+and is only published when the whole run succeeds - if template parsing,
+execution, output writing, or saving the snapshot fails, any pre-existing
+snapshot is left untouched and the temporary file is removed. Re-recording
+fully replaces the previous contents of the file.
+
+The snapshot path is independent of the template inputs and render outputs.
+
+```console
+$ gomplate -d config=https://example.com/config.json --datasource-record snapshot.json -i '{{ (ds "config").foo }}'
+```
+
+This option is mutually exclusive with `--datasource-replay`. See the
+[datasources documentation](../datasources/#recording-and-replaying-datasource-reads)
+for details.
+
+### `--datasource-replay`
+
+Replay datasource reads from the given local `file`, previously produced with
+[`--datasource-record`](#--datasource-record), instead of opening files,
+enumerating directories, or making HTTP requests for those datasources. All
+read values and raw text are identical to when the snapshot was recorded.
+
+Each read is matched against the snapshot by alias and first argument, and
+additionally checked against the URL, type hint, and effective headers it
+resolves to. A missing entry or an identity mismatch is an error for
+`datasource`/`ds`, `include`, and context loading - gomplate never falls back
+to the live datasource. [`datasourceReachable`](../functions/data#datasourcereachable)
+instead returns `false` for such reads, just as it does for failed live reads.
+
+Input and nested template files themselves, direct environment/file functions,
+and plugins continue to run normally.
+
+```console
+$ gomplate -d config=https://example.com/config.json --datasource-replay snapshot.json -i '{{ (ds "config").foo }}'
+```
+
+A corrupt snapshot, an unsupported snapshot version, and combining this option
+with `--datasource-record` all produce an error before any inputs are
+collected, datasources read, or outputs created.
+
 ### `--context`/`-c`
 
 Add a data source in `name=URL` form, and make it available in the [default context][] as `.<name>`. The special name `.` (period) can be used to override the entire default context.
